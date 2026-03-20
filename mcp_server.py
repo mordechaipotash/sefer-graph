@@ -35,7 +35,7 @@ SESSION_ID = str(uuid.uuid4())[:8]  # Unique per MCP server session
 
 mcp = FastMCP(
     "sefer-graph",
-    description=(
+    instructions=(
         "Torah Citation Knowledge Graph — 1.9M+ citations across 60+ sefarim. "
         "Tools: search_citations, top_cited, citation_path, graph_stats, citation_types, co_cited, compare_sources, rare_finds. "
         "Alpha test — usage is logged for improvement."
@@ -186,7 +186,7 @@ def search_citations(
         log_query("search_citations", {"ref": ref, "direction": direction, "min_confidence": min_confidence}, result[:200], total, ms)
 
         # SHELET: contextual next actions based on what we found
-        first_target = rows[0]['target_ref'] if rows else None
+        first_target = rows[0].get('target_ref') or rows[0].get('source_ref') if rows else None
         opts = []
         if total > 0 and first_target:
             opts.append(f"Explore the top result: search_citations(ref='{first_target}')")
