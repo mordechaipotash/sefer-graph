@@ -179,7 +179,7 @@ function renderBar(items, container, colorClass, maxKey) {
   el.innerHTML = items.map(i => {
     const val = i[maxKey] || i.n || 0;
     const pct = Math.max(2, (val / maxVal) * 100);
-    const label = i.name || i.type || i.corpus || '?';
+    const label = i.name || i.type || i.citation_type || i.corpus || '?';
     const display = val >= 1000 ? `${(val/1000).toFixed(0)}K` : fmt(val);
     return `<li class="bar-item">
       <span class="bar-label" title="${label}">${label}</span>
