@@ -110,7 +110,7 @@
 <!-- Top stats -->
 <div class="grid" id="stats-grid">
   <div class="card"><div class="label">Citations</div><div class="value" id="citations">—</div><div class="sub" id="citations-sub">sources → targets</div></div>
-  <div class="card blue"><div class="label">Source Corpora</div><div class="value" id="corpora-count">—</div><div class="sub">sefarim processed</div></div>
+  <div class="card blue"><div class="label">Sefarim</div><div class="value" id="corpora-count">—</div><div class="sub">individual works processed</div></div>
   <div class="card green"><div class="label">Avg Confidence</div><div class="value" id="avg-conf">—</div><div class="sub" id="conf-sub">confidence score</div></div>
   <div class="card"><div class="label">API Queries</div><div class="value" id="total-queries">—</div><div class="sub" id="queries-sub">from N users</div></div>
   <div class="card"><div class="label">P50 Latency</div><div class="value" id="p50-latency">—</div><div class="sub" id="latency-sub">ms (p95: —)</div></div>
@@ -232,7 +232,7 @@ async function refresh() {
     }
     
     // Corpora & types charts
-    renderBar(corpora, 'corpora-chart', 'gold', 'n');
+    renderBar(corpora.slice(0, 30), 'corpora-chart', 'gold', 'n');
     renderBar(d.citation_types || [], 'types-chart', 'blue', 'n');
     
     // Tool cards
