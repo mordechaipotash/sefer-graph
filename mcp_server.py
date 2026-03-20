@@ -78,10 +78,13 @@ def query(sql: str):
 
 
 def _sq(s):
-    """SQL-safe string escape."""
+    """SQL-safe string escape — prevents injection."""
     if s is None:
         return ''
-    return str(s).replace("'", "''").replace('\x00', '')
+    s = str(s).replace("'", "''").replace('\x00', '')
+    # Strip SQL injection patterns
+    s = s.replace(';', '').replace('--', '').replace('/*', '').replace('*/', '')
+    return s
 
 
 def log_query(tool_name: str, params: dict, result_summary: str,
@@ -149,6 +152,7 @@ def search_citations(
     parts = []
     total = 0
     ref_esc = _sq(ref)
+    all_rows = []  # collect rows from both directions for SHELET
 
     try:
         if direction in ("outgoing", "both"):
@@ -165,6 +169,7 @@ def search_citations(
                     out.append(f"  → {r['target_ref']} [{r['citation_type']}, {r['confidence']:.2f}] {ev}")
                 parts.append("\n".join(out))
                 total += len(rows)
+                all_rows.extend(rows)
 
         if direction in ("incoming", "both"):
             rows = query(f"""
@@ -180,13 +185,14 @@ def search_citations(
                     inc.append(f"  ← {r['source_ref']} [{r['citation_type']}, {r['confidence']:.2f}] {ev}")
                 parts.append("\n".join(inc))
                 total += len(rows)
+                all_rows.extend(rows)
 
         result = "\n\n".join(parts) if parts else f"No citations found for '{ref}'"
         ms = int((time.time() - t0) * 1000)
         log_query("search_citations", {"ref": ref, "direction": direction, "min_confidence": min_confidence}, result[:200], total, ms)
 
         # SHELET: contextual next actions based on what we found
-        first_target = rows[0].get('target_ref') or rows[0].get('source_ref') if rows else None
+        first_target = (all_rows[0].get('target_ref') or all_rows[0].get('source_ref')) if all_rows else None
         opts = []
         if total > 0 and first_target:
             opts.append(f"Explore the top result: search_citations(ref='{first_target}')")
@@ -440,64 +446,52 @@ def co_cited(
     """
     t0 = time.time()
     try:
-        if ref:
-            ref_esc = _sq(ref)
-            rows = query(f"""
-                WITH my_sources AS (
-                    SELECT DISTINCT source_ref
-                    FROM sefer.citations_public
-                    WHERE target_ref ILIKE '%{ref_esc}%' AND confidence >= 0.7
-                ),
-                co AS (
-                    SELECT c.target_ref as paired_with, COUNT(*) as times_together,
-                           ROUND(AVG(c.confidence)::numeric, 2) as avg_conf
-                    FROM sefer.citations_public c
-                    JOIN my_sources ms ON c.source_ref = ms.source_ref
-                    WHERE c.target_ref NOT ILIKE '%{ref_esc}%'
-                      AND c.confidence >= 0.7
-                    GROUP BY c.target_ref
-                    HAVING COUNT(*) >= {min_co_occurrences}
-                    ORDER BY times_together DESC
-                    LIMIT {top_n}
-                )
-                SELECT * FROM co
-            """)
-            
-            lines = [f"**Co-cited with '{ref}'** (appears together in the same source):\n"]
-            for i, r in enumerate(rows, 1):
-                lines.append(f"{i}. **{r['paired_with']}** — {r['times_together']}× together (avg conf {r['avg_conf']})")
-            result = "\n".join(lines) if rows else f"No co-citation data found for '{ref}'"
-        else:
-            rows = query(f"""
-                WITH pairs AS (
-                    SELECT a.target_ref as ref_a, b.target_ref as ref_b, COUNT(*) as together
-                    FROM sefer.citations_public a
-                    JOIN sefer.citations_public b ON a.source_ref = b.source_ref
-                        AND a.target_ref < b.target_ref
-                    WHERE a.confidence >= 0.7 AND b.confidence >= 0.7
-                    GROUP BY a.target_ref, b.target_ref
-                    HAVING COUNT(*) >= {min_co_occurrences}
-                    ORDER BY together DESC
-                    LIMIT {top_n}
-                )
-                SELECT * FROM pairs
-            """)
-            
-            lines = [f"**Top {len(rows)} co-cited pairs** (appear in the same source segment):\n"]
-            for i, r in enumerate(rows, 1):
-                lines.append(f"{i}. **{r['ref_a']}** ↔ **{r['ref_b']}** — {r['together']}× together")
-            result = "\n".join(lines) if rows else "Not enough co-citation data yet."
+        if not ref:
+            return shelet(
+                "⚠️ `co_cited` requires a `ref` parameter — the global co-citation matrix is too large (1.9M×1.9M self-join).\n\n"
+                "**Usage:** `co_cited(ref='Berakhot 2a')` — finds what's most often cited alongside Berakhot 2a.",
+                [
+                    "Try: co_cited(ref='Berakhot 2a')",
+                    "Try: co_cited(ref='Leviticus 19:18')",
+                    "See graph overview: graph_stats()"
+                ]
+            )
+
+        ref_esc = _sq(ref)
+        rows = query(f"""
+            WITH my_sources AS (
+                SELECT DISTINCT source_ref
+                FROM sefer.citations_public
+                WHERE target_ref ILIKE '%{ref_esc}%' AND confidence >= 0.7
+            ),
+            co AS (
+                SELECT c.target_ref as paired_with, COUNT(*) as times_together,
+                       ROUND(AVG(c.confidence)::numeric, 2) as avg_conf
+                FROM sefer.citations_public c
+                JOIN my_sources ms ON c.source_ref = ms.source_ref
+                WHERE c.target_ref NOT ILIKE '%{ref_esc}%'
+                  AND c.confidence >= 0.7
+                GROUP BY c.target_ref
+                HAVING COUNT(*) >= {min_co_occurrences}
+                ORDER BY times_together DESC
+                LIMIT {top_n}
+            )
+            SELECT * FROM co
+        """)
+        
+        lines = [f"**Co-cited with '{ref}'** (appears together in the same source):\n"]
+        for i, r in enumerate(rows, 1):
+            lines.append(f"{i}. **{r['paired_with']}** — {r['times_together']}× together (avg conf {r['avg_conf']})")
+        result = "\n".join(lines) if rows else f"No co-citation data found for '{ref}'"
         
         ms = int((time.time() - t0) * 1000)
         log_query("co_cited", {"ref": ref, "top_n": top_n}, result[:200], len(rows), ms)
         
         top_pair = rows[0] if rows else None
         opts = []
-        if ref and top_pair:
+        if top_pair:
             opts.append(f"Explore the top pair: search_citations(ref='{top_pair['paired_with']}')")
             opts.append(f"Find path between them: citation_path(from_ref='{ref}', to_ref='{top_pair['paired_with']}')")
-        elif top_pair:
-            opts.append(f"Focus on one side: co_cited(ref='{top_pair.get('ref_a', '')}')")
         opts.append("See overall stats: graph_stats()")
         return shelet(result, opts[:3])
         
