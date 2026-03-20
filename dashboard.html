@@ -203,7 +203,53 @@ async function refresh() {
     document.getElementById('citations').textContent = fmt(d.citation_count);
     document.getElementById('citations-sub').textContent = `${fmt(d.source_count)} sources → ${fmt(d.target_count)} targets`;
     
-    const corpora = d.source_corpora || [];
+    // Group tractate-level entries into sefer-level
+    const rawCorpora = d.source_corpora || [];
+    const seferMap = {};
+    const seferRules = [
+      [/^Rashi on /, 'Rashi on Bavli'],
+      [/^Tosafot on /, 'Tosafot on Bavli'],
+      [/^Rashba on /, 'Rashba on Bavli'],
+      [/^Ritva on /, 'Ritva on Bavli'],
+      [/^Ran on /, 'Ran on Bavli'],
+      [/^Meiri on /, 'Meiri on Bavli'],
+      [/^Rosh on /, 'Rosh on Bavli'],
+      [/^Ramban on /, 'Ramban on Bavli'],
+      [/^Rif /, 'Rif'],
+      [/^Arukh HaShulchan /, 'Arukh HaShulchan'],
+      [/^Shulchan Arukh,/, 'Shulchan Arukh'],
+      [/^Shulchan Arukh HaRav/, 'Shulchan Arukh HaRav'],
+      [/^Tur,/, 'Tur'],
+      [/^Beit Yosef,/, 'Beit Yosef'],
+      [/^Bach,/, 'Bach'],
+      [/^Prisha,/, 'Prisha'],
+      [/^Jerusalem Talmud /, 'Jerusalem Talmud'],
+      [/^Tosefta /, 'Tosefta'],
+      [/^Mishnah /, 'Mishnah'],
+      [/^Mishneh Torah/, 'Mishneh Torah (Rambam)'],
+      [/^Sifrei /, 'Sifrei'],
+      [/^Mishnah Berurah/, 'Mishnah Berurah'],
+      [/^Magen Avraham/, 'Magen Avraham'],
+      [/^Biur Halacha/, 'Biur Halacha'],
+      [/^Taz/, 'Taz'],
+      [/^Sefer HaChinukh/, 'Sefer HaChinukh'],
+      [/^Kitzur SA/, 'Kitzur Shulchan Arukh'],
+      [/^Chayei Adam/, 'Chayei Adam'],
+    ];
+    for (const c of rawCorpora) {
+      let matched = false;
+      for (const [re, label] of seferRules) {
+        if (re.test(c.name)) {
+          seferMap[label] = (seferMap[label] || 0) + c.n;
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) seferMap[c.name] = (seferMap[c.name] || 0) + c.n;
+    }
+    const corpora = Object.entries(seferMap)
+      .map(([name, n]) => ({name, n}))
+      .sort((a,b) => b.n - a.n);
     document.getElementById('corpora-count').textContent = corpora.length;
     
     const conf = d.confidence || {};
