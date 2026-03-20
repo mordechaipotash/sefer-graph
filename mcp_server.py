@@ -37,8 +37,8 @@ mcp = FastMCP(
     "sefer-graph",
     description=(
         "Torah Citation Knowledge Graph — 1.9M+ citations across 60+ sefarim. "
-        "Tools: search_citations, top_cited, citation_path, graph_stats, citation_types, query_sql. "
-        "Alpha test — all queries logged."
+        "Tools: search_citations, top_cited, citation_path, graph_stats, citation_types. "
+        "Alpha test — usage is logged for improvement."
     )
 )
 
@@ -154,7 +154,7 @@ def search_citations(
         if direction in ("outgoing", "both"):
             rows = query(f"""
                 SELECT target_ref, citation_type, confidence, evidence_hebrew
-                FROM sefer.citations
+                FROM sefer.citations_public
                 WHERE source_ref ILIKE '%{ref_esc}%' AND confidence >= {min_confidence}
                 ORDER BY confidence DESC LIMIT {limit}
             """)
@@ -169,7 +169,7 @@ def search_citations(
         if direction in ("incoming", "both"):
             rows = query(f"""
                 SELECT source_ref, citation_type, confidence, evidence_hebrew
-                FROM sefer.citations
+                FROM sefer.citations_public
                 WHERE target_ref ILIKE '%{ref_esc}%' AND confidence >= {min_confidence}
                 ORDER BY confidence DESC LIMIT {limit}
             """)
@@ -231,7 +231,7 @@ def top_cited(
             SELECT target_ref, COUNT(*) as times_cited,
                    COUNT(DISTINCT source_ref) as unique_sources,
                    ROUND(AVG(confidence)::numeric, 2) as avg_conf
-            FROM sefer.citations
+            FROM sefer.citations_public
             WHERE {' AND '.join(where)}
             GROUP BY target_ref
             ORDER BY times_cited DESC LIMIT {limit}
@@ -276,13 +276,13 @@ def citation_path(from_ref: str, to_ref: str, max_hops: int = 3) -> str:
             WITH RECURSIVE path AS (
                 SELECT source_ref, target_ref, citation_type, confidence,
                        1 as hop, ARRAY[source_ref, target_ref] as chain
-                FROM sefer.citations
+                FROM sefer.citations_public
                 WHERE source_ref ILIKE '%{_sq(from_ref)}%' AND confidence >= 0.7
                 UNION ALL
                 SELECT p.target_ref, c.target_ref, c.citation_type, c.confidence,
                        p.hop + 1, p.chain || c.target_ref
                 FROM path p
-                JOIN sefer.citations c ON c.source_ref = p.target_ref
+                JOIN sefer.citations_public c ON c.source_ref = p.target_ref
                 WHERE p.hop < {min(max_hops, 4)} AND c.confidence >= 0.7
                   AND NOT c.target_ref = ANY(p.chain)
             )
@@ -336,7 +336,7 @@ def graph_stats() -> str:
                    COUNT(DISTINCT source_ref) as sources,
                    COUNT(DISTINCT target_ref) as targets,
                    ROUND(AVG(confidence)::numeric, 3) as avg_conf
-            FROM sefer.citations
+            FROM sefer.citations_public
         """)[0]
 
         conf = query("""
@@ -344,12 +344,12 @@ def graph_stats() -> str:
                 COUNT(*) FILTER (WHERE confidence >= 0.9) as high,
                 COUNT(*) FILTER (WHERE confidence >= 0.7 AND confidence < 0.9) as med,
                 COUNT(*) FILTER (WHERE confidence < 0.7) as low
-            FROM sefer.citations
+            FROM sefer.citations_public
         """)[0]
 
         types = query("""
             SELECT citation_type, COUNT(*) as n
-            FROM sefer.citations GROUP BY citation_type ORDER BY n DESC LIMIT 5
+            FROM sefer.citations_public GROUP BY citation_type ORDER BY n DESC LIMIT 5
         """)
         type_str = ", ".join(f"{t['citation_type']}={t['n']:,}" for t in types)
 
@@ -395,7 +395,7 @@ def citation_types(ref_filter: str = "") -> str:
             SELECT citation_type, COUNT(*) as n,
                    ROUND(100.0*COUNT(*) / SUM(COUNT(*)) OVER(), 1) as pct,
                    ROUND(AVG(confidence)::numeric, 3) as avg_conf
-            FROM sefer.citations {where}
+            FROM sefer.citations_public {where}
             GROUP BY citation_type ORDER BY n DESC LIMIT 15
         """)
 
@@ -421,52 +421,8 @@ def citation_types(ref_filter: str = "") -> str:
         return f"Error: {e}"
 
 
-# ── Tool 6: Raw SQL ───────────────────────────────────
-
-@mcp.tool()
-def query_sql(sql: str) -> str:
-    """Run a read-only SQL query against the sefer-graph database.
-    
-    Schema: sefer.citations
-    Columns: source_ref (text), target_ref (text), citation_type (text), 
-             confidence (float), layer (int), evidence_hebrew (text), model (text)
-    
-    Args:
-        sql: SELECT query only. No writes allowed.
-    """
-    t0 = time.time()
-    clean = sql.strip()
-    if not clean.upper().startswith("SELECT"):
-        return "Only SELECT queries allowed."
-
-    try:
-        rows = query(clean)
-        if not rows:
-            result = "No results."
-        else:
-            lines = []
-            for r in rows[:50]:
-                if isinstance(r, dict):
-                    lines.append(" | ".join(f"{k}={v}" for k, v in r.items()))
-                else:
-                    lines.append(str(r))
-            if len(rows) > 50:
-                lines.append(f"... ({len(rows)} total, showing 50)")
-            result = "\n".join(lines)
-
-        ms = int((time.time() - t0) * 1000)
-        log_query("query_sql", {"sql": clean[:300]}, result[:200], len(rows) if rows else 0, ms)
-
-        return shelet(result, [
-            "Search by reference: search_citations(ref='...')",
-            "See top cited: top_cited()",
-            "Graph overview: graph_stats()"
-        ])
-
-    except Exception as e:
-        ms = int((time.time() - t0) * 1000)
-        log_query("query_sql", {"sql": clean[:200]}, None, 0, ms, str(e))
-        return f"Query error: {e}"
+# Raw SQL tool removed — users interact only through the 5 structured tools above.
+# This prevents them from discovering internal schema details (model column, etc.)
 
 
 if __name__ == "__main__":
