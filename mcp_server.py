@@ -37,7 +37,7 @@ mcp = FastMCP(
     "sefer-graph",
     description=(
         "Torah Citation Knowledge Graph — 1.9M+ citations across 60+ sefarim. "
-        "Tools: search_citations, top_cited, citation_path, graph_stats, citation_types. "
+        "Tools: search_citations, top_cited, citation_path, graph_stats, citation_types, co_cited, compare_sources, rare_finds. "
         "Alpha test — usage is logged for improvement."
     )
 )
@@ -421,8 +421,286 @@ def citation_types(ref_filter: str = "") -> str:
         return f"Error: {e}"
 
 
-# Raw SQL tool removed — users interact only through the 5 structured tools above.
-# This prevents them from discovering internal schema details (model column, etc.)
+# ── Tool 6: Co-citation analysis ──────────────────────
+
+@mcp.tool()
+def co_cited(
+    ref: str = "",
+    top_n: int = 20,
+    min_co_occurrences: int = 3
+) -> str:
+    """Find which Torah references or authorities are most frequently cited TOGETHER.
+    When two targets appear in the same source segment, they are "co-cited" — meaning
+    the author is engaging with both simultaneously (comparing, contrasting, synthesizing).
+    
+    Args:
+        ref: Optional — focus on co-citations involving this reference
+        top_n: Number of pairs to return (default 20)
+        min_co_occurrences: Minimum times they must appear together (default 3)
+    """
+    t0 = time.time()
+    try:
+        if ref:
+            ref_esc = _sq(ref)
+            rows = query(f"""
+                WITH my_sources AS (
+                    SELECT DISTINCT source_ref
+                    FROM sefer.citations_public
+                    WHERE target_ref ILIKE '%{ref_esc}%' AND confidence >= 0.7
+                ),
+                co AS (
+                    SELECT c.target_ref as paired_with, COUNT(*) as times_together,
+                           ROUND(AVG(c.confidence)::numeric, 2) as avg_conf
+                    FROM sefer.citations_public c
+                    JOIN my_sources ms ON c.source_ref = ms.source_ref
+                    WHERE c.target_ref NOT ILIKE '%{ref_esc}%'
+                      AND c.confidence >= 0.7
+                    GROUP BY c.target_ref
+                    HAVING COUNT(*) >= {min_co_occurrences}
+                    ORDER BY times_together DESC
+                    LIMIT {top_n}
+                )
+                SELECT * FROM co
+            """)
+            
+            lines = [f"**Co-cited with '{ref}'** (appears together in the same source):\n"]
+            for i, r in enumerate(rows, 1):
+                lines.append(f"{i}. **{r['paired_with']}** — {r['times_together']}× together (avg conf {r['avg_conf']})")
+            result = "\n".join(lines) if rows else f"No co-citation data found for '{ref}'"
+        else:
+            rows = query(f"""
+                WITH pairs AS (
+                    SELECT a.target_ref as ref_a, b.target_ref as ref_b, COUNT(*) as together
+                    FROM sefer.citations_public a
+                    JOIN sefer.citations_public b ON a.source_ref = b.source_ref
+                        AND a.target_ref < b.target_ref
+                    WHERE a.confidence >= 0.7 AND b.confidence >= 0.7
+                    GROUP BY a.target_ref, b.target_ref
+                    HAVING COUNT(*) >= {min_co_occurrences}
+                    ORDER BY together DESC
+                    LIMIT {top_n}
+                )
+                SELECT * FROM pairs
+            """)
+            
+            lines = [f"**Top {len(rows)} co-cited pairs** (appear in the same source segment):\n"]
+            for i, r in enumerate(rows, 1):
+                lines.append(f"{i}. **{r['ref_a']}** ↔ **{r['ref_b']}** — {r['together']}× together")
+            result = "\n".join(lines) if rows else "Not enough co-citation data yet."
+        
+        ms = int((time.time() - t0) * 1000)
+        log_query("co_cited", {"ref": ref, "top_n": top_n}, result[:200], len(rows), ms)
+        
+        top_pair = rows[0] if rows else None
+        opts = []
+        if ref and top_pair:
+            opts.append(f"Explore the top pair: search_citations(ref='{top_pair['paired_with']}')")
+            opts.append(f"Find path between them: citation_path(from_ref='{ref}', to_ref='{top_pair['paired_with']}')")
+        elif top_pair:
+            opts.append(f"Focus on one side: co_cited(ref='{top_pair.get('ref_a', '')}')")
+        opts.append("See overall stats: graph_stats()")
+        return shelet(result, opts[:3])
+        
+    except Exception as e:
+        ms = int((time.time() - t0) * 1000)
+        log_query("co_cited", {"ref": ref}, None, 0, ms, str(e))
+        return f"Error: {e}"
+
+
+# ── Tool 7: Compare sources ──────────────────────────
+
+@mcp.tool()
+def compare_sources(
+    source_a: str,
+    source_b: str,
+    aspect: str = "targets"
+) -> str:
+    """Compare citation patterns between two Torah texts or corpora.
+    Reveals how different authors approach the same material differently.
+    
+    Args:
+        source_a: First text/corpus (e.g. "Rambam", "Tosafot", "Shulchan Arukh OC")
+        source_b: Second text/corpus (e.g. "Rashba", "Ran", "Mishnah Berurah")
+        aspect: What to compare — "targets" (what they cite), "types" (how they cite), or "overlap" (shared vs unique citations)
+    """
+    t0 = time.time()
+    a_esc = _sq(source_a)
+    b_esc = _sq(source_b)
+    
+    try:
+        if aspect == "types":
+            rows_a = query(f"""
+                SELECT citation_type, COUNT(*) as n,
+                       ROUND(100.0*COUNT(*)/SUM(COUNT(*)) OVER(), 1) as pct
+                FROM sefer.citations_public
+                WHERE source_ref ILIKE '%{a_esc}%' AND confidence >= 0.7
+                GROUP BY citation_type ORDER BY n DESC LIMIT 10
+            """)
+            rows_b = query(f"""
+                SELECT citation_type, COUNT(*) as n,
+                       ROUND(100.0*COUNT(*)/SUM(COUNT(*)) OVER(), 1) as pct
+                FROM sefer.citations_public
+                WHERE source_ref ILIKE '%{b_esc}%' AND confidence >= 0.7
+                GROUP BY citation_type ORDER BY n DESC LIMIT 10
+            """)
+            
+            lines = [f"**Citation DNA comparison:**\n"]
+            lines.append(f"**{source_a}:**")
+            for r in rows_a:
+                lines.append(f"  {r['citation_type']}: {r['n']:,} ({r['pct']}%)")
+            lines.append(f"\n**{source_b}:**")
+            for r in rows_b:
+                lines.append(f"  {r['citation_type']}: {r['n']:,} ({r['pct']}%)")
+            result = "\n".join(lines)
+            count = len(rows_a) + len(rows_b)
+            
+        elif aspect == "overlap":
+            rows = query(f"""
+                WITH a_targets AS (
+                    SELECT DISTINCT target_ref FROM sefer.citations_public
+                    WHERE source_ref ILIKE '%{a_esc}%' AND confidence >= 0.7
+                ),
+                b_targets AS (
+                    SELECT DISTINCT target_ref FROM sefer.citations_public
+                    WHERE source_ref ILIKE '%{b_esc}%' AND confidence >= 0.7
+                )
+                SELECT 
+                    (SELECT COUNT(*) FROM a_targets) as a_total,
+                    (SELECT COUNT(*) FROM b_targets) as b_total,
+                    (SELECT COUNT(*) FROM a_targets WHERE target_ref IN (SELECT target_ref FROM b_targets)) as shared,
+                    (SELECT COUNT(*) FROM a_targets WHERE target_ref NOT IN (SELECT target_ref FROM b_targets)) as a_only,
+                    (SELECT COUNT(*) FROM b_targets WHERE target_ref NOT IN (SELECT target_ref FROM a_targets)) as b_only
+            """)
+            r = rows[0]
+            shared_pct = round(100 * int(r['shared']) / max(min(int(r['a_total']), int(r['b_total'])), 1), 1)
+            result = f"""**Citation overlap: {source_a} vs {source_b}**
+
+{source_a}: {r['a_total']:,} unique targets
+{source_b}: {r['b_total']:,} unique targets
+Shared: {r['shared']:,} targets ({shared_pct}% overlap)
+Only in {source_a}: {r['a_only']:,}
+Only in {source_b}: {r['b_only']:,}"""
+            count = 1
+            
+        else:  # targets
+            rows = query(f"""
+                WITH a_top AS (
+                    SELECT target_ref, COUNT(*) as a_count
+                    FROM sefer.citations_public
+                    WHERE source_ref ILIKE '%{a_esc}%' AND confidence >= 0.7
+                    GROUP BY target_ref ORDER BY a_count DESC LIMIT 15
+                ),
+                b_counts AS (
+                    SELECT target_ref, COUNT(*) as b_count
+                    FROM sefer.citations_public
+                    WHERE source_ref ILIKE '%{b_esc}%' AND confidence >= 0.7
+                    GROUP BY target_ref
+                )
+                SELECT a.target_ref, a.a_count, COALESCE(b.b_count, 0) as b_count,
+                       a.a_count - COALESCE(b.b_count, 0) as diff
+                FROM a_top a LEFT JOIN b_counts b ON a.target_ref = b.target_ref
+                ORDER BY a.a_count DESC
+            """)
+            
+            lines = [f"**Top targets: {source_a} vs {source_b}**\n"]
+            lines.append(f"{'Reference':<40} {source_a:>8} {source_b:>8}  Diff")
+            for r in rows:
+                diff = r['diff']
+                indicator = "→" if diff > 0 else "←" if diff < 0 else "="
+                lines.append(f"  {r['target_ref']:<38} {r['a_count']:>8} {r['b_count']:>8}  {indicator}{abs(diff)}")
+            result = "\n".join(lines)
+            count = len(rows)
+        
+        ms = int((time.time() - t0) * 1000)
+        log_query("compare_sources", {"a": source_a, "b": source_b, "aspect": aspect}, result[:200], count, ms)
+        
+        return shelet(result, [
+            f"Compare citation types: compare_sources(source_a='{source_a}', source_b='{source_b}', aspect='types')" if aspect != "types" else f"Compare overlap: compare_sources(source_a='{source_a}', source_b='{source_b}', aspect='overlap')",
+            f"Co-citations in {source_a}: co_cited(ref='{source_a}')",
+            f"Search {source_b}: search_citations(ref='{source_b}')"
+        ])
+        
+    except Exception as e:
+        ms = int((time.time() - t0) * 1000)
+        log_query("compare_sources", {"a": source_a, "b": source_b}, None, 0, ms, str(e))
+        return f"Error: {e}"
+
+
+# ── Tool 8: Rare finds / anomalies ──────────────────
+
+@mcp.tool()
+def rare_finds(
+    corpus_filter: str = "",
+    max_occurrences: int = 2,
+    min_confidence: float = 0.8,
+    limit: int = 15
+) -> str:
+    """Surface rare and unique citations — texts cited only once or twice in the entire graph.
+    These are the hidden gems: unusual allusions, unexpected connections, singular references
+    that reveal an author's unique perspective.
+    
+    Args:
+        corpus_filter: Optional — filter by source corpus (e.g. "Meiri", "Rambam")
+        max_occurrences: Maximum times a target can be cited to count as "rare" (default 2)
+        min_confidence: Minimum confidence to avoid noise (default 0.8)
+        limit: Number of results (default 15)
+    """
+    t0 = time.time()
+    try:
+        where = [f"confidence >= {min_confidence}"]
+        if corpus_filter:
+            where.append(f"source_ref ILIKE '%{_sq(corpus_filter)}%'")
+        
+        rows = query(f"""
+            WITH rare AS (
+                SELECT target_ref, COUNT(*) as times_cited,
+                       array_agg(DISTINCT source_ref) as cited_by,
+                       array_agg(DISTINCT citation_type) as types,
+                       MAX(evidence_hebrew) as sample_evidence,
+                       MAX(confidence) as best_conf
+                FROM sefer.citations_public
+                WHERE {' AND '.join(where)}
+                GROUP BY target_ref
+                HAVING COUNT(*) <= {max_occurrences}
+                ORDER BY best_conf DESC, times_cited ASC
+                LIMIT {limit}
+            )
+            SELECT * FROM rare
+        """)
+        
+        lines = [f"**Rare citations{f' in {corpus_filter}' if corpus_filter else ''}** (≤{max_occurrences} occurrences, ≥{min_confidence} confidence):\n"]
+        for i, r in enumerate(rows, 1):
+            cited_by = r.get('cited_by', '')
+            if isinstance(cited_by, list):
+                cited_by = cited_by[0] if cited_by else ''
+            elif isinstance(cited_by, str):
+                cited_by = cited_by.strip('{}').split(',')[0] if cited_by else ''
+            types = r.get('types', '')
+            if isinstance(types, list):
+                types = types[0] if types else ''
+            elif isinstance(types, str):
+                types = types.strip('{}').split(',')[0] if types else ''
+            ev = (r.get('sample_evidence') or '')[:80]
+            lines.append(f"{i}. **{r['target_ref']}** — {r['times_cited']}× [{types}] conf {r['best_conf']:.2f}")
+            lines.append(f"   Found in: {cited_by}")
+            if ev:
+                lines.append(f"   Evidence: {ev}")
+        
+        result = "\n".join(lines) if rows else "No rare citations found with these filters."
+        ms = int((time.time() - t0) * 1000)
+        log_query("rare_finds", {"corpus_filter": corpus_filter, "max_occ": max_occurrences}, result[:200], len(rows), ms)
+        
+        top = rows[0] if rows else None
+        return shelet(result, [
+            f"Explore this rare find: search_citations(ref='{top['target_ref']}')" if top else "Try broader search: rare_finds(max_occurrences=5)",
+            f"Compare: rare_finds(corpus_filter='Meiri')" if corpus_filter != "Meiri" else "Try Rambam: rare_finds(corpus_filter='Rambam')",
+            "See overall stats: graph_stats()"
+        ])
+        
+    except Exception as e:
+        ms = int((time.time() - t0) * 1000)
+        log_query("rare_finds", {"corpus_filter": corpus_filter}, None, 0, ms, str(e))
+        return f"Error: {e}"
 
 
 if __name__ == "__main__":
