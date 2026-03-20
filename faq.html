@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sefer-Graph FAQ — Torah Citation Knowledge Graph</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Segoe UI', system-ui, sans-serif; background: #0a0a0f; color: #e0e0e0; }
+  
+  /* Nav */
+  .nav { background: #0f0f18; border-bottom: 1px solid #1a1a2a; padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+  .nav a { color: #888; text-decoration: none; font-size: 0.85em; transition: color 0.2s; }
+  .nav a:hover, .nav a.active { color: #f0c040; }
+  .nav .logo { color: #f0c040; font-weight: 700; font-size: 1.1em; margin-right: 20px; }
+  
+  /* Container */
+  .container { max-width: 800px; margin: 0 auto; padding: 48px 24px; }
+  
+  /* Header */
+  h1 { color: #f0c040; font-size: 2em; font-weight: 700; margin-bottom: 8px; }
+  .lead { color: #888; font-size: 1.05em; line-height: 1.6; margin-bottom: 48px; }
+  
+  /* Category */
+  .category { margin-bottom: 48px; }
+  .cat-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 8px; border-bottom: 1px solid #1a1a2a; }
+  .cat-icon { font-size: 1.4em; }
+  .cat-title { color: #ccc; font-size: 1.15em; font-weight: 600; }
+  .cat-count { color: #555; font-size: 0.8em; }
+  
+  /* Accordion */
+  .faq-item { border-bottom: 1px solid #15151f; }
+  .faq-q { padding: 16px 0; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 500; color: #ddd; font-size: 0.95em; line-height: 1.4; transition: color 0.2s; }
+  .faq-q:hover { color: #f0c040; }
+  .faq-q::after { content: '+'; color: #555; font-size: 1.2em; font-weight: 300; flex-shrink: 0; margin-left: 16px; transition: transform 0.2s; }
+  .faq-item.open .faq-q::after { content: '−'; color: #f0c040; }
+  .faq-a { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s; }
+  .faq-item.open .faq-a { max-height: 600px; padding-bottom: 16px; }
+  .faq-a p { color: #999; font-size: 0.9em; line-height: 1.7; margin-top: 0; }
+  .faq-a code { background: #1a1a2a; color: #a0a0ff; padding: 2px 6px; border-radius: 3px; font-size: 0.85em; }
+  .faq-a ul { color: #999; font-size: 0.9em; line-height: 1.7; padding-left: 20px; margin-top: 8px; }
+  .faq-a li { margin-bottom: 4px; }
+  .faq-a a { color: #7a7aff; text-decoration: none; }
+  .faq-a a:hover { text-decoration: underline; }
+  
+  /* Stats highlight */
+  .stat { color: #f0c040; font-weight: 600; }
+  
+  /* Footer */
+  .footer { text-align: center; color: #444; font-size: 0.8em; margin-top: 48px; padding-top: 24px; border-top: 1px solid #1a1a2a; }
+  .footer a { color: #7a7aff; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <span class="logo">📊 Sefer-Graph</span>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="faq.html" class="active">FAQ</a>
+  <a href="https://github.com/mordechaipotash/sefer-graph" target="_blank">GitHub</a>
+</div>
+
+<div class="container">
+
+<h1>FAQ</h1>
+<p class="lead">Everything you need to know about the Torah Citation Knowledge Graph — what's in it, how to use it, and what it means for Torah study.</p>
+
+<!-- ═══════ General ═══════ -->
+<div class="category">
+  <div class="cat-header">
+    <span class="cat-icon">📚</span>
+    <span class="cat-title">General</span>
+    <span class="cat-count">5 questions</span>
+  </div>
+  
+  <div class="faq-item">
+    <div class="faq-q">What is Sefer-Graph?</div>
+    <div class="faq-a"><p>A knowledge graph of <span class="stat">1,896,325</span> cross-references extracted from Torah literature. When Rashi cites Berakhot 2a, or the Arukh HaShulchan references Rambam's Mishneh Torah — those connections are captured, typed, and scored for confidence. It's an MCP server with 8 tools that let any AI client query the graph.</p></div>
+  </div>
+  
+  <div class="faq-item">
+    <div class="faq-q">Who is this for?</div>
+    <div class="faq-a"><p>Anyone who studies Torah and uses AI tools — learners, educators, rabbis, developers. If you've ever wondered "who else cites this gemara?" or "how does Rashi's citation pattern differ from the Meiri's?" — this is for you. It's also a research tool for computational approaches to Torah scholarship.</p></div>
+  </div>
+  
+  <div class="faq-item">
+    <div class="faq-q">How do I use it?</div>
+    <div class="faq-a"><p>Add the MCP server to your Claude Desktop, Claude Code, or any MCP-compatible client. Then ask natural questions:</p>
+    <ul>
+      <li>"What texts cite Berakhot 2a?"</li>
+      <li>"Compare Rashi and Meiri's citation patterns"</li>
+      <li>"Find rare citations in the Ritva"</li>
+      <li>"What's most co-cited with Shabbat 108b?"</li>
+    </ul>
+    <p>The AI translates your question into the right tool call automatically.</p></div>
+  </div>
+  
+  <div class="faq-item">
+    <div class="faq-q">Is this free?</div>
+    <div class="faq-a"><p>Yes. The MCP server, data, and dashboard are all open source. The underlying data is stored in Supabase (free tier). You need your own MCP client (Claude Desktop is free).</p></div>
+  </div>
+  
+  <div class="faq-item">
+    <div class="faq-q">What's the SHELET protocol?</div>
+    <div class="faq-a"><p>Every tool response ends with 3 contextual next-action suggestions — named after the Hebrew word שלט (sign/menu). Instead of leaving you with raw data, it guides your next move: "Explore this result", "Compare citation types", "Find the path between them". It makes exploration natural.</p></div>
+  </div>
+</div>
+
+<!-- ═══════ Data ═══════ -->
+<div class="category">
+  <div class="cat-header">
+    <span class="cat-icon">🗄️</span>
+    <span class="cat-title">Data</span>
+    <span class="cat-count">5 questions</span>
+  </div>
+  
+  <div class="faq-item">
+    <div class="faq-q">What sefarim are included?</div>
+    <div class="faq-a"><p>Currently <span class="stat">15 source corpora</span> with their citations extracted:</p>
+    <ul>
+      <li><strong>Arukh HaShulchan</strong> — 343K citations (largest corpus)</li>
+      <li><strong>Rashi</strong> — 214K citations</li>
+      <li><strong>Tosafot</strong> — 182K citations</li>
+      <li><strong>Beit Yosef</strong> — 120K citations</li>
+      <li><strong>Meiri</strong> — 118K citations</li>
+      <li><strong>Ritva</strong> — 105K citations</li>
+      <li><strong>Jerusalem Talmud</strong> — 102K citations</li>
+      <li><strong>Bach</strong> — 96K, <strong>Rashba</strong> — 88K, <strong>Magen Avraham</strong> — 84K</li>
+      <li><strong>Biur Halacha, Shulchan Arukh, Sefer HaChinukh, Kitzur SA</strong> and more</li>
+    </ul>
+    <p>The Rambam (Mishneh Torah) appears as a <em>target</em> — cited by others — with <span class="stat">89,545</span> references. His own text isn't yet processed as a source corpus.</p></div>
+  </div>
+  
+  <div class="faq-item">
+    <div class="faq-q">What types of citations are tracked?</div>
+    <div class="faq-a"><p>15 citation types, each with different meanings:</p>
+    <ul>
+      <li><strong>explicit_talmud</strong> (30.5%) — direct Talmud references</li>
+      <li><strong>back_reference</strong> (17.8%) — self-references within a work</li>
+      <li><strong>named_position</strong> (17.0%) — citing an authority's opinion</li>
+      <li><strong>explicit_verse</strong> (10.3%) — biblical verse citations</li>
+      <li><strong>explicit_mishnah</strong> (9.9%) — Mishnah references</li>
+      <li><strong>conceptual_dependency</strong> (6.7%) — building on an idea without explicit citation</li>
+      <li><strong>allusion</strong>, <strong>paraphrased_verse</strong>, <strong>legal_principle</strong>, <strong>explicit_braita</strong>, <strong>gezeira_shava</strong>, and more</li>
+    </ul></div>
+  </div>
+  
+  <div class="faq-item">
+    <div class="faq-q">What does the confidence score mean?</div>
+    <div class="faq-a"><p>Each citation has a confidence score from 0 to 1 indicating how certain the extraction is:</p>
+    <ul>
+      <li><strong>≥0.9</strong> (36.3%) — High confidence. Explicit, unambiguous citation.</li>
+      <li><strong>0.7–0.9</strong> (47.4%) — Medium. Strong textual evidence but some ambiguity.</li>
+      <li><strong>&lt;0.7</strong> (16.3%) — Lower confidence. Allusions, conceptual links, or ambiguous references.</li>
+    </ul>
+    <p>Average across the graph: <span class="stat">0.873</span>. Tools default to ≥0.7 but you can adjust.</p></div>
+  </div>
+  
+  <div class="faq-item">
+    <div class="faq-q">How was the data extracted?</div>
+    <div class="faq-a"><p>LLM-powered extraction pipeline processing the full text of each sefer. Each segment is analyzed for all references to other texts — verses, Talmud, Mishnah, other commentators, legal codes. The pipeline identifies the citation type and assigns a confidence score. Results are stored in DuckDB locally and Supabase for the MCP server.</p></div>
+  </div>
+  
+  <div class="faq-item">
+    <div class="faq-q">Why don't I see Rambam as a source?</div>
+    <div class="faq-a"><p>The current pipeline has processed 15 source corpora — primarily Rishonim and Acharonim who comment on Talmud, and halachic codes. The Rambam (Mishneh Torah) is massively represented as a <em>target</em> — 89,545 times other works cite him. Processing Rambam as a source (extracting what <em>he</em> cites) is planned for a future layer.</p></div>
+  </div>
+</div>
+
+<!-- ═══════ Tools ═══════ -->
+<div class="category">
+  <div class="cat-header">
+    <span class="cat-icon">🔧</span>
+    <span class="cat-title">Tools</span>
+    <span class="cat-count">4 questions</span>
+  </div>
+  
+  <div class="faq-item">
+    <div class="faq-q">What are the 8 tools?</div>
+    <div class="faq-a">
+    <ul>
+      <li><code>search_citations</code> — Find what cites a text or what a text cites</li>
+      <li><code>top_cited</code> — Most frequently referenced texts in the graph</li>
+      <li><code>citation_path</code> — Find how two texts connect through citation chains</li>
+      <li><code>graph_stats</code> — Overview statistics of the entire graph</li>
+      <li><code>citation_types</code> — Distribution of citation types, optionally filtered</li>
+      <li><code>co_cited</code> — What texts appear together most often</li>
+      <li><code>compare_sources</code> — Compare citation patterns between two authors</li>
+      <li><code>rare_finds</code> — Surface unique, one-of-a-kind citations</li>
+    </ul></div>
+  </div>
+  
+  <div class="faq-item">
+    <div class="faq-q">What's the most interesting tool?</div>
+    <div class="faq-a"><p><code>compare_sources</code> is arguably the most novel. You can compare the "citation DNA" of any two commentators — Rashi vs Meiri, Tosafot vs Rashba. It reveals that Rashi is 49% back-references while Meiri is 50% explicit Talmud citations. Their overlap is only 54.2%. These are patterns no human could compute manually across hundreds of thousands of citations.</p></div>
+  </div>
+  
+  <div class="faq-item">
+    <div class="faq-q">How fast is it?</div>
+    <div class="faq-a"><p>Median (p50) latency is about <span class="stat">4 seconds</span> per query. The bottleneck is the Supabase management API, not the database itself. <code>graph_stats</code> is the slowest at ~14s because it runs 3 aggregate queries on 1.9M rows. Direct Postgres would be 10-50× faster — this is an alpha trade-off for simplicity.</p></div>
+  </div>
+  
+  <div class="faq-item">
+    <div class="faq-q">How do I install the MCP server?</div>
+    <div class="faq-a"><p>Add this to your Claude Desktop config (<code>claude_desktop_config.json</code>):</p>
+    <p><code>"sefer-graph": { "command": "python3", "args": ["/path/to/mcp_server.py"], "env": { "SUPABASE_PAT": "your_token" } }</code></p>
+    <p>Or clone the repo and follow the <a href="https://github.com/mordechaipotash/sefer-graph">README</a>.</p></div>
+  </div>
+</div>
+
+<!-- ═══════ Alpha ═══════ -->
+<div class="category">
+  <div class="cat-header">
+    <span class="cat-icon">🏗️</span>
+    <span class="cat-title">Alpha Status</span>
+    <span class="cat-count">3 questions</span>
+  </div>
+  
+  <div class="faq-item">
+    <div class="faq-q">Why is this alpha?</div>
+    <div class="faq-a"><p>The data and tools work, but there's more to do: more source corpora (Rambam, Ramban, Ran), better reference normalization (same text appearing under different names), deduplication of citations, and performance optimization. Every query you make is logged (anonymously) to help improve the system.</p></div>
+  </div>
+  
+  <div class="faq-item">
+    <div class="faq-q">What's logged?</div>
+    <div class="faq-a"><p>Tool name, parameters, result count, latency, and a user ID (which you set — defaults to "anonymous"). No personal data. The logs help us understand which tools are most useful, which queries fail, and where to focus improvement. You can see all logged queries on the <a href="dashboard.html">live dashboard</a>.</p></div>
+  </div>
+  
+  <div class="faq-item">
+    <div class="faq-q">What's coming next?</div>
+    <div class="faq-a">
+    <ul>
+      <li>More source corpora — Rambam, Ramban, Ran, Rabbenu Chananel</li>
+      <li>Reference normalization — "Berakhot 2a" and "ברכות ב." as the same text</li>
+      <li>Citation deduplication</li>
+      <li>Direct Postgres for faster queries</li>
+      <li>Semantic search — find citations by concept, not just reference</li>
+      <li>Interactive graph visualization</li>
+    </ul></div>
+  </div>
+</div>
+
+<div class="footer">
+  Sefer-Graph Alpha · Built by <a href="https://github.com/mordechaipotash" target="_blank">Mordechai Potash</a> · <a href="dashboard.html">Dashboard</a> · <a href="https://github.com/mordechaipotash/sefer-graph" target="_blank">GitHub</a>
+</div>
+
+</div>
+
+<script>
+document.querySelectorAll('.faq-q').forEach(q => {
+  q.addEventListener('click', () => {
+    const item = q.parentElement;
+    item.classList.toggle('open');
+  });
+});
+</script>
+</body>
+</html>
