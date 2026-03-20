@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sefer-Graph Alpha Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'SF Mono', 'Fira Code', monospace; background: #0a0a0f; color: #e0e0e0; padding: 20px; }
+  h1 { color: #f0c040; font-size: 1.4em; margin-bottom: 4px; }
+  .subtitle { color: #888; font-size: 0.85em; margin-bottom: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .card { background: #14141f; border: 1px solid #2a2a3a; border-radius: 8px; padding: 16px; }
+  .card .label { color: #888; font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; }
+  .card .value { color: #f0c040; font-size: 2em; font-weight: bold; margin-top: 4px; }
+  .card .unit { color: #666; font-size: 0.8em; }
+  .live-dot { display: inline-block; width: 8px; height: 8px; background: #4ade80; border-radius: 50%; animation: pulse 2s infinite; margin-right: 6px; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+  th { text-align: left; color: #888; font-weight: normal; padding: 8px 12px; border-bottom: 1px solid #2a2a3a; font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; }
+  td { padding: 8px 12px; border-bottom: 1px solid #1a1a2a; }
+  tr:hover { background: #1a1a2f; }
+  .tool-tag { background: #2a2a4a; color: #a0a0ff; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; }
+  .user-tag { background: #2a3a2a; color: #80e080; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; }
+  .error-tag { background: #3a2020; color: #ff8080; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; }
+  .latency { color: #f0c040; }
+  .latency.slow { color: #ff6060; }
+  .section { margin-top: 24px; }
+  .section h2 { color: #ccc; font-size: 1em; margin-bottom: 12px; }
+  .tools-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tools-bar .bar-item { background: #14141f; border: 1px solid #2a2a3a; border-radius: 6px; padding: 8px 14px; }
+  .tools-bar .bar-item .name { color: #a0a0ff; font-size: 0.8em; }
+  .tools-bar .bar-item .count { color: #f0c040; font-size: 1.4em; font-weight: bold; }
+  #status { position: fixed; top: 10px; right: 20px; font-size: 0.75em; color: #666; }
+  .refresh-btn { background: #2a2a4a; color: #a0a0ff; border: 1px solid #3a3a5a; border-radius: 4px; padding: 4px 12px; cursor: pointer; font-family: inherit; font-size: 0.8em; margin-left: 8px; }
+  .refresh-btn:hover { background: #3a3a5a; }
+</style>
+</head>
+<body>
+
+<h1>📊 Sefer-Graph Alpha Dashboard</h1>
+<div class="subtitle"><span class="live-dot"></span>Live — auto-refreshes every 5s</div>
+
+<div id="status">Loading...</div>
+
+<div class="grid" id="stats-grid">
+  <div class="card"><div class="label">Total Queries</div><div class="value" id="total-queries">—</div></div>
+  <div class="card"><div class="label">Unique Users</div><div class="value" id="unique-users">—</div></div>
+  <div class="card"><div class="label">Queries (1h)</div><div class="value" id="queries-hour">—</div></div>
+  <div class="card"><div class="label">Avg Latency</div><div class="value" id="avg-latency">—</div><div class="unit">ms</div></div>
+  <div class="card"><div class="label">Error Rate</div><div class="value" id="error-rate">—</div><div class="unit">%</div></div>
+  <div class="card"><div class="label">Citations Loaded</div><div class="value" id="citation-count">—</div></div>
+</div>
+
+<div class="section">
+  <h2>Tool Usage</h2>
+  <div class="tools-bar" id="tools-bar"></div>
+</div>
+
+<div class="section">
+  <h2>Recent Queries <button class="refresh-btn" onclick="refresh()">↻ Refresh</button></h2>
+  <table>
+    <thead><tr><th>Time</th><th>User</th><th>Tool</th><th>Params</th><th>Results</th><th>Latency</th><th>Error</th></tr></thead>
+    <tbody id="recent-tbody"></tbody>
+  </table>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://xsjyfneizfkbitmzbrta.supabase.co';
+const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhzanlmbmVpemZrYml0bXpicnRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE4MDcxMzUsImV4cCI6MjA2NzM4MzEzNX0.wgrPV43hdznmYGYQIRgH2gxl_mByAS52S3d7vQLgYB8';
+const HEADERS = {
+  'apikey': ANON_KEY,
+  'Authorization': `Bearer ${ANON_KEY}`,
+  'Content-Type': 'application/json'
+};
+
+async function rpc(fn, params = {}) {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: HEADERS,
+    body: JSON.stringify(params)
+  });
+  return resp.json();
+}
+
+async function restGet(table, query = '') {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
+    headers: HEADERS
+  });
+  return resp.json();
+}
+
+function fmt(n) {
+  if (n === null || n === undefined) return '—';
+  return Number(n).toLocaleString();
+}
+
+function ago(ts) {
+  const diff = (Date.now() - new Date(ts)) / 1000;
+  if (diff < 60) return `${Math.round(diff)}s ago`;
+  if (diff < 3600) return `${Math.round(diff/60)}m ago`;
+  return `${Math.round(diff/3600)}h ago`;
+}
+
+function truncate(s, n) {
+  if (!s) return '';
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+
+async function refresh() {
+  try {
+    const d = await rpc('sefer_dashboard');
+
+    document.getElementById('total-queries').textContent = fmt(d.total_queries);
+    document.getElementById('unique-users').textContent = fmt(d.unique_users);
+    document.getElementById('queries-hour').textContent = fmt(d.queries_last_hour);
+    document.getElementById('avg-latency').textContent = fmt(d.avg_latency_ms);
+    document.getElementById('error-rate').textContent = d.error_rate_pct ?? '0';
+    document.getElementById('citation-count').textContent = fmt(d.citation_count);
+
+    // Tools bar
+    const bar = document.getElementById('tools-bar');
+    bar.innerHTML = '';
+    if (d.top_tools) {
+      d.top_tools.forEach(t => {
+        bar.innerHTML += `<div class="bar-item"><div class="name">${t.tool}</div><div class="count">${fmt(t.n)}</div></div>`;
+      });
+    }
+
+    // Recent queries via RPC
+    const recent = await rpc('sefer_recent_queries', { n: 30 });
+
+    const tbody = document.getElementById('recent-tbody');
+    tbody.innerHTML = '';
+    if (Array.isArray(recent)) {
+      recent.forEach(r => {
+        const latClass = r.latency_ms > 500 ? 'latency slow' : 'latency';
+        const params = typeof r.params === 'string' ? r.params : JSON.stringify(r.params);
+        tbody.innerHTML += `<tr>
+          <td>${ago(r.created_at)}</td>
+          <td><span class="user-tag">${r.user_id || 'anon'}</span></td>
+          <td><span class="tool-tag">${r.tool_name}</span></td>
+          <td>${truncate(params, 60)}</td>
+          <td>${r.result_count ?? '—'}</td>
+          <td><span class="${latClass}">${r.latency_ms ?? '—'}ms</span></td>
+          <td>${r.error ? `<span class="error-tag">${truncate(r.error, 40)}</span>` : '✓'}</td>
+        </tr>`;
+      });
+    }
+
+    document.getElementById('status').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+  } catch (e) {
+    document.getElementById('status').textContent = `Error: ${e.message}`;
+  }
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+# Data files (too large for git)
+data/
+*.duckdb
+*.duckdb.wal
+*.parquet
+*.jsonl
+
+# Environment
+.venv/
+__pycache__/
+*.pyc
+.env
+
+# OS
+.DS_Store

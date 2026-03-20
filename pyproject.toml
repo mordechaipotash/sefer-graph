@@ -1,0 +1,18 @@
+[project]
+name = "sefer-graph"
+version = "0.1.0"
+description = "Torah Citation Knowledge Graph — MCP Server"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "mcp>=1.0.0",
+    "httpx>=0.25.0",
+]
+
+[project.optional-dependencies]
+local = ["duckdb>=1.0.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
